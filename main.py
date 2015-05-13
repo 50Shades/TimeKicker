@@ -12,8 +12,29 @@ from PyQt4 import QtCore, QtGui, uic
 import pwd, grp
 import pickle, operator
 
-form_class = uic.loadUiType("main.ui")[0]			   # Load the UI
-dial1 = uic.loadUiType("dial1.ui")[0]				 	# Load the UI
+form_class = uic.loadUiType("ui/main.ui")[0]			   # Load the UI
+dial1 = uic.loadUiType("ui/dial1.ui")[0]				 	# Load the UI
+assign = uic.loadUiType("ui/assign.ui")[0]				 	# Load the UI
+
+class AssignForm(QtGui.QDialog, assign):
+
+	def __init__(self, parent=None, assign_type = None, uuid = 0):
+		QtGui.QWidget.__init__(self, parent)
+		self.setupUi(self)
+		self.data = parent.data
+		self.assign_type = assign_type
+		self.uuid = int(uuid)
+		print self.assign_type, uuid
+		for i in self.data['profiles']:
+		  self.comboBox.insertItem(int(self.data['profiles'][i]['id']),self.data['profiles'][i]['id']+"|"+self.data['profiles'][i]['name'])
+		  
+	def accept(self):
+		profile_id =  int(self.comboBox.currentText().split("|")[0])
+		if (self.assign_type == "user"):
+			self.data['user_profiles'][self.uuid] = profile_id
+		if (self.assign_type == "group"):
+			self.data['group_profiles'][self.uuid] = profile_id
+		self.close()
 
 class MyForm(QtGui.QDialog, dial1):
 
@@ -141,12 +162,15 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 		### Profiles
 		self.btn_uprofiles_assign.clicked.connect(self.edit_user_profiles)
 		self.btn_uprofiles_delete.clicked.connect(self.delete_user_profiles)
+		self.btn_gprofiles_assign.clicked.connect(self.edit_group_profiles)
+		self.btn_gprofiles_delete.clicked.connect(self.delete_group_profiles)
 		#self.btn_CtoF.clicked.connect(self.btn_CtoF_clicked)  # Bind the event handlers
 		#self.btn_FtoC.clicked.connect(self.btn_FtoC_clicked)  #   to the buttons
 		self._dialog = None
 		
 		self.fill_profiles()
 		self.fill_user_profiles()
+		self.fill_group_profiles()
 
 	######################################################################################
 	def reload_data(self):
@@ -173,9 +197,9 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 							}}
 						},
 					'user_profiles' :
-						{1000:5 , 155:6},
+						{},
 					'group_profiles' :
-						{1000:5 , 155:5}
+						{}
 					}
 		pickle.dump( all_data, open( "config.p", "wb" ) )
 		return pickle.load( open( "config.p", "rb" ) )
@@ -245,12 +269,16 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 	# Filling profile table with data
 	def fill_user_profiles(self):
 		# Find all users and by user ID read pickle and assign
+		self.table_user_profiles.setRowCount(0)
 		entries = []
-
 		for p in pwd.getpwall():
 			if p[2] >= 1000:
-				print p[0], grp.getgrgid(p[3])[0], p[2]
-				entries.append((str(p[2]),p[0],"None"))
+				# If user has set profile id, then find name
+				user_profile_name = ""
+				if (int(p[2]) in self.data['user_profiles']):
+					  user_profile_id = self.data['user_profiles'][int(p[2])]
+					  user_profile_name = self.data['profiles'][user_profile_id]['name']
+				entries.append((str(p[2]),p[0],user_profile_name))
 		
 		# Read all filters from PICKEL and show
 		self.table_user_profiles.setRowCount(len(entries))
@@ -269,6 +297,10 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 			print "Editing user filter settings:",self.table_user_profiles.item(prof_row,0).text()
 		else:
 			return
+		myapp= AssignForm(self,"user",self.table_user_profiles.item(prof_row,0).text())
+		myapp.exec_()
+		self.save_data()
+		self.fill_user_profiles()
 	
 	# Delete profiles - recursively with all settings
 	def delete_user_profiles(self):
@@ -277,7 +309,63 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 		if (prof_row >= 0):
 			print "Delete user filter settings:",self.table_user_profiles.item(prof_row,0).text()
 		else:
-			return	
+			return
+
+		pid = int(self.table_user_profiles.item(prof_row,0).text())
+		del self.data['user_profiles'][pid]
+		self.save_data()
+		self.fill_user_profiles()
+	######################################################################################
+	####################### GROUP PROFILES ################################################
+	# Filling profile table with data
+	def fill_group_profiles(self):
+		# Find all groups and by group ID read pickle and assign
+		self.table_group_profiles.setRowCount(0)
+		entries = []
+		for p in pwd.getpwall():
+			if p[2] >= 1000:
+				# If group has set profile id, then find name
+				group_profile_name = ""
+				if (int(p[2]) in self.data['group_profiles']):
+					  group_profile_id = self.data['group_profiles'][int(p[2])]
+					  group_profile_name = self.data['profiles'][group_profile_id]['name']
+				entries.append((str(p[2]),p[0],group_profile_name))
+		
+		# Read all filters from PICKEL and show
+		self.table_group_profiles.setRowCount(len(entries))
+		self.table_group_profiles.setColumnCount(len(entries[0]))
+		for i, row in enumerate(entries):
+			for j, col in enumerate(row):
+				#print i, j, col
+				item = QtGui.QTableWidgetItem(col)
+				self.table_group_profiles.setItem(i, j, item)
+
+	# Edit existin profile for time managemant
+	def edit_group_profiles(self):
+		prof_row = self.table_group_profiles.currentIndex().row()
+		# If profile is selected in table
+		if (prof_row >= 0):
+			print "Editing group filter settings:",self.table_group_profiles.item(prof_row,0).text()
+		else:
+			return
+		myapp= AssignForm(self,"group",self.table_group_profiles.item(prof_row,0).text())
+		myapp.exec_()
+		self.save_data()
+		self.fill_group_profiles()
+	
+	# Delete profiles - recursively with all settings
+	def delete_group_profiles(self):
+		prof_row = self.table_group_profiles.currentIndex().row()
+		# If profile is selected in table
+		if (prof_row >= 0):
+			print "Delete group filter settings:",self.table_group_profiles.item(prof_row,0).text()
+		else:
+			return
+
+		pid = int(self.table_group_profiles.item(prof_row,0).text())
+		del self.data['group_profiles'][pid]
+		self.save_data()
+		self.fill_group_profiles()
 	######################################################################################
 	def quit(self):
 		print "exit"
