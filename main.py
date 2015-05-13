@@ -11,6 +11,7 @@ import sys
 from PyQt4 import QtCore, QtGui, uic
 import pwd, grp
 import pickle, operator
+from os.path import expanduser
 
 form_class = uic.loadUiType("ui/main.ui")[0]			   # Load the UI
 dial1 = uic.loadUiType("ui/dial1.ui")[0]				 	# Load the UI
@@ -32,8 +33,32 @@ class AssignForm(QtGui.QDialog, assign):
 		profile_id =  int(self.comboBox.currentText().split("|")[0])
 		if (self.assign_type == "user"):
 			self.data['user_profiles'][self.uuid] = profile_id
+			for p in pwd.getpwall():
+				if p[2] == self.uuid:
+					home = p[5]
+			# Make file from profile and write it to user folder
+			profile_settings = self.data['profiles'][profile_id]
+			pickle.dump(profile_settings, open(home+"/.tk_settings.p", "wb"))
+			
+		# For groups
 		if (self.assign_type == "group"):
 			self.data['group_profiles'][self.uuid] = profile_id
+
+			for p in pwd.getpwall():
+				if (p[3] == self.uuid):
+					if (p[2] not in self.data['user_profiles']):
+						print p
+						home = p[5]
+						profile_settings = self.data['profiles'][profile_id]
+						pickle.dump(profile_settings, open(home+"/.tk_settings.p", "wb"))
+			# Projit vsechny z grupy
+			# Kdo neni v userech, nakopirovat
+			
+			# Kdyz se vymaze uzivatelsky, tak pokud je ve skupine, ktera je ve skupinovych, tak nakopirovat jejich
+			# Kdyz se vymaze skupinovy, tak mazat jen tam, kde neni uzivatelsky
+		
+		
+		
 		self.close()
 
 class MyForm(QtGui.QDialog, dial1):
@@ -177,13 +202,13 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 		all_data = {'profiles' :
 						{5 :
 							{"id" : "5", "name" : "Profile name", "not" : "KDE", "noi" : "10", "lot" : "Soft",  "settings" : {
-								1 : {"banned" : "1230-1630", "time" : "80"}, 
-								2 : {"banned" : "1330-1730", "time" : "70"}, 
-								3 : {"banned" : "1430-1830", "time" : "60"}, 
-								4 : {"banned" : "1530-1930", "time" : "50"}, 
-								5 : {"banned" : "1630-2030", "time" : "40"}, 
-								6 : {"banned" : "1730-2130", "time" : "30"}, 
-								7 : {"banned" : "1830-2230", "time" : "20"}
+								1 : {"banned" : "1230-1630", "time" : "60"}, 
+								2 : {"banned" : "1330-1730", "time" : "50"}, 
+								3 : {"banned" : "1430-2355", "time" : "40"}, 
+								4 : {"banned" : "1530-2355", "time" : "30"}, 
+								5 : {"banned" : "1630-2030", "time" : "20"}, 
+								6 : {"banned" : "1730-2130", "time" : "10"}, 
+								7 : {"banned" : "1830-2230", "time" : "10"}
 							}},
 						6 :
 							{"id" : "6", "name" : "Childrens", "not" : "PyQt", "noi" : "5", "lot" : "Hard", "settings" : {
@@ -250,6 +275,7 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 		
 		pid = int(self.table_profiles.item(prof_row,0).text())
 		del self.data['profiles'][pid]
+		
 		self.save_data()
 		self.fill_profiles()
 		
@@ -313,6 +339,16 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 
 		pid = int(self.table_user_profiles.item(prof_row,0).text())
 		del self.data['user_profiles'][pid]
+
+		#for p in pwd.getpwall():
+			#if (p[2] == pid):
+				#home = p[5]
+				#os.remove(home+"/.tk_settings.p")
+				#if (p[3] not in self.data['group_profiles']):
+					#profile_id = self.data['group_profiles'][p[3]]
+					#profile_settings = self.data['profiles'][profile_id]
+					#pickle.dump(profile_settings, open(home+"/.tk_settings.p", "wb"))
+
 		self.save_data()
 		self.fill_user_profiles()
 	######################################################################################
@@ -364,6 +400,13 @@ class MyWindowClass(QtGui.QMainWindow, form_class):
 
 		pid = int(self.table_group_profiles.item(prof_row,0).text())
 		del self.data['group_profiles'][pid]
+
+		#for p in pwd.getpwall():
+			#if (p[3] == pid):
+				#home = p[5]
+				#if (p[2] not in self.data['user_profiles']):
+					#os.remove(home+"/.tk_settings.p")
+
 		self.save_data()
 		self.fill_group_profiles()
 	######################################################################################
